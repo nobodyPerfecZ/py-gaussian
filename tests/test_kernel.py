@@ -21,7 +21,7 @@ class TestPolynomialKernel(unittest.TestCase):
 
     def test_call(self):
         """
-        Tests the magic method __call__.
+        Tests the magic method __call__().
         """
         self.assertTrue(np.isclose(self.K, self.kernel(self.X1, self.X2), atol=1e-3))
 
@@ -48,7 +48,7 @@ class TestGaussianKernel(unittest.TestCase):
 
     def test_call(self):
         """
-        Tests the magic method __call__.
+        Tests the magic method __call__().
         """
         self.assertTrue(np.isclose(self.K, self.kernel(self.X1, self.X2), atol=1e-3))
 
