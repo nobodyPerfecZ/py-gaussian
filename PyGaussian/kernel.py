@@ -14,6 +14,12 @@ class Kernel(ABC):
     @staticmethod
     @abstractmethod
     def get_hps() -> dict[str, Any]:
+        """
+        Returns:
+            dict[str, Any]: dictionary, where
+                - key := name of hyperparameter
+                - value := type of hyperparameter
+        """
         pass
 
 
