@@ -3,7 +3,7 @@ from scipy.optimize import minimize
 from scipy.optimize import Bounds
 import numpy as np
 
-from PyGaussian.kernel import Kernel, GaussianKernel, PolynomialKernel
+from PyGaussian.kernel import Kernel, GaussianKernel
 
 
 class GaussianProcess:
@@ -18,7 +18,7 @@ class GaussianProcess:
             self,
             kernel_method: str = "gaussian",
             optimizer: str = "L-BFGS-B",
-            n_restarts: int = 5,
+            n_restarts: int = 20,
     ):
         self._optimizer = optimizer
         self._n_restarts = n_restarts
@@ -75,7 +75,7 @@ class GaussianProcess:
         self._kernel = self._get_kernel(*thetas)
 
         # Construct covariance matrix K and its inverse K^-1
-        K = self.cov(self._X, self._X) + np.eye(n) * 1e-10
+        K = self.cov(self._X, self._X) + np.eye(n) * 3e-10
         inv_K = np.linalg.inv(K)
 
         # Estimate Prior mean
@@ -110,11 +110,11 @@ class GaussianProcess:
         # Generate random starting points (thetas)
         hp_types = self._get_kernel_hps()
         n = len(hp_types)  # number of hyperparameters for kernel function
-        # Lower bound := -10, upper bound := 10
-        initial_thetas = -100 + np.random.rand(self._n_restarts, n) * (100 - -100)
+        # Lower bound := -1, upper bound := 1
+        initial_thetas = -1 + np.random.rand(self._n_restarts, n) * (1 - -1)
 
         # Create the bounds for each algorithm
-        bounds = Bounds([-100] * n, [100] * n)
+        bounds = Bounds([-1] * n, [1] * n)
 
         # Run optimizer on all sampled thetas
         opt_para = np.zeros((self._n_restarts, n))
@@ -155,18 +155,16 @@ class GaussianProcess:
         mean = self._mean + k @ self._inv_K @ (self._Y - self._mean * one)
 
         # Variance prediction
-        sigma = self._sigma * (1 - np.diag(k @ self._inv_K @ k.T))
+        sigma = (self._sigma * (1 - np.diag(k @ self._inv_K @ k.T))).T
 
-        return mean.flatten(), sigma.flatten()
+        return mean, sigma
 
     def _get_kernel_class(self) -> Type[Kernel]:
         """
         Returns:
             Type[Kernel]: Class of the used kernel
         """
-        if self._kernel_method == "polynomial":
-            return PolynomialKernel
-        elif self._kernel_method == "gaussian":
+        if self._kernel_method == "gaussian":
             return GaussianKernel
         raise ValueError(f"Unknown kernel method {self._kernel_method}!")
 

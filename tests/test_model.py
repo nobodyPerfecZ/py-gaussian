@@ -1,7 +1,7 @@
 import unittest
 import numpy as np
 
-from PyGaussian.kernel import GaussianKernel, PolynomialKernel
+from PyGaussian.kernel import GaussianKernel
 from PyGaussian.model import GaussianProcess
 
 
@@ -12,7 +12,6 @@ class TestGaussianProcess(unittest.TestCase):
 
     def setUp(self):
         self.model1 = GaussianProcess(kernel_method="gaussian", optimizer="L-BFGS-B", n_restarts=10)
-        self.model2 = GaussianProcess(kernel_method="polynomial", optimizer="L-BFGS-B", n_restarts=10)
 
         self.X = np.array([
             [1, 2, 3],
@@ -62,20 +61,18 @@ class TestGaussianProcess(unittest.TestCase):
         Tests the method _get_kernel_class().
         """
         self.assertEqual(GaussianKernel, self.model1._get_kernel_class())
-        self.assertEqual(PolynomialKernel, self.model2._get_kernel_class())
 
     def test_get_kernel_hps(self):
         """
         Tests the method _get_kernel_hps().
         """
-        self.assertNotEqual(self.model1._get_kernel_hps(), self.model2._get_kernel_hps())
+        self.assertEqual({"length": float}, self.model1._get_kernel_hps())
 
     def test_get_kernel(self):
         """
         Tests the method _get_kernel().
         """
         self.assertIsInstance(self.model1._get_kernel(0.2), GaussianKernel)
-        self.assertIsInstance(self.model2._get_kernel(0.2, 4), PolynomialKernel)
 
 
 if __name__ == '__main__':
