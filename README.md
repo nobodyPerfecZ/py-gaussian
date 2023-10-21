@@ -44,3 +44,8 @@ To summarize all up, the following plot shows how well the GP approximate the tr
 which shows how sample efficient and highly interpretable GPs are.
 
 ![](gp_prediction.png)
+
+### Future Features
+The following list defines features, that are currently on work:
+
+* [ ] Add more kernel functions (Polynomial, Matérn, ...) to PyGaussian
