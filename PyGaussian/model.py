@@ -3,7 +3,15 @@ from scipy.optimize import minimize
 from scipy.optimize import Bounds
 import numpy as np
 
-from PyGaussian.kernel import Kernel, GaussianKernel
+from PyGaussian.kernel import (
+    Kernel,
+    LinearKernel,
+    PolynomialKernel,
+    SigmoidKernel,
+    LaplacianKernel,
+    PeriodicKernel,
+    RBFKernel,
+)
 
 
 class GaussianProcess:
@@ -16,12 +24,14 @@ class GaussianProcess:
 
     def __init__(
             self,
-            kernel_method: str = "gaussian",
+            kernel_method: str = "rbf",
             optimizer: str = "L-BFGS-B",
             n_restarts: int = 20,
+            return_cov: bool = False,
     ):
         self._optimizer = optimizer
         self._n_restarts = n_restarts
+        self._return_cov = return_cov
 
         # Kernel function for calculating the covariance function K(X1, X2)
         self._kernel_method = kernel_method
@@ -33,23 +43,26 @@ class GaussianProcess:
         self._Y = None
 
         # Parameters for .predict() method
-        self._K = None
-        self._inv_K = None
+        self._K_obv_obv = None
+        self._K_obv_obv_inv = None
         self._mean = None
-        self._sigma = None
+        self._variance = None
 
     def cov(self, X1: np.ndarray, X2: np.ndarray) -> np.ndarray:
         """
         Returns the covariance matrix between X1 and X2, calculated by the covariance function K(X1, X2).
 
         Args:
-            X1 (np.ndarray): dataset of shape (N1, M1)
-            X2 (np.ndarray): dataset of shape (N2, M2)
+            X1 (np.ndarray):
+                Dataset of shape (N, M)
+            X2 (np.ndarray):
+                Dataset of shape (N, M)
 
         Returns:
-            np.ndarray: covariance matrix of shape (N1, N2)
+            np.ndarray:
+                Covariance matrix of shape (M, M)
         """
-        return np.array([[self._kernel(x1, x2) for x1 in X1] for x2 in X2])
+        return np.array([[self._kernel(x1, x2) for x2 in X2] for x1 in X1])
 
     def negative_likelihood(self, thetas: np.ndarray) -> float:
         """
@@ -74,24 +87,26 @@ class GaussianProcess:
         # Construct the kernel function K(X1, X2) with given thetas
         self._kernel = self._get_kernel(*thetas)
 
-        # Construct covariance matrix K and its inverse K^-1
-        K = self.cov(self._X, self._X) + np.eye(n) * 3e-10
-        inv_K = np.linalg.inv(K)
+        # Construct covariance matrix K_obv_obv
+        K_obv_obv = self.cov(self._X, self._X) + np.identity(n) * 1e-6
 
-        # Estimate Prior mean
-        mean = (one.T @ inv_K @ self._Y) / (one.T @ inv_K @ one)
-
-        # Estimate Prior variance
-        sigma = (self._Y - mean * one).T @ inv_K @ (self._Y - mean * one) / n
+        # Compute its inverse
+        K_obv_obv_inv = np.linalg.inv(K_obv_obv)
 
         # Compute determinant of K
-        det_K = np.linalg.det(K)
+        K_obv_obv_det = np.linalg.det(K_obv_obv)
+
+        # Estimate Prior mean
+        mean = (one.T @ K_obv_obv_inv @ self._Y) / (one.T @ K_obv_obv_inv @ one)
+
+        # Estimate Prior variance
+        variance = ((self._Y - mean * one).T @ K_obv_obv_inv @ (self._Y - mean * one)) / n
 
         # Compute log-likelihood
-        likelihood = -(n / 2) * np.log(sigma) - 0.5 * np.log(det_K)
+        likelihood = -(n / 2) * np.log(variance) - 0.5 * np.log(K_obv_obv_det)
 
         # Update attributes (for .predict() later on)
-        self._K, self._inv_K, self._mean, self._sigma = K, inv_K, mean, sigma
+        self._K_obv_obv, self._K_obv_obv_inv, self._mean, self._variance = K_obv_obv, K_obv_obv_inv, mean, variance
 
         return -likelihood.flatten()
 
@@ -101,20 +116,31 @@ class GaussianProcess:
         hyperparameters of the covariance function K(X1, X2 | thetas).
 
         Args:
-            X (np.ndarray): training dataset
-            Y (np.ndarray): training dataset
+            X (np.ndarray):
+                Training dataset of shape (N, ?)
+
+            Y (np.ndarray):
+                Training dataset of shape (N, ?)
         """
+        if len(X.shape) == 1:
+            X = np.expand_dims(X, -1)
+
+        if len(Y.shape) == 1:
+            Y = np.expand_dims(Y, -1)
+
         # Calculates the thetas of the kernel function
         self._X, self._Y = X, Y
 
         # Generate random starting points (thetas)
         hp_types = self._get_kernel_hps()
         n = len(hp_types)  # number of hyperparameters for kernel function
-        # Lower bound := -1, upper bound := 1
-        initial_thetas = -1 + np.random.rand(self._n_restarts, n) * (1 - -1)
+
+        # Lower bound := 0, upper bound := 2
+        lower_bound, upper_bound = 0.0, 2.0
+        initial_thetas = lower_bound + np.random.rand(self._n_restarts, n) * (upper_bound - lower_bound)
 
         # Create the bounds for each algorithm
-        bounds = Bounds([-1] * n, [1] * n)
+        bounds = Bounds([lower_bound] * n, [upper_bound] * n)
 
         # Run optimizer on all sampled thetas
         opt_para = np.zeros((self._n_restarts, n))
@@ -145,6 +171,9 @@ class GaussianProcess:
         """
         assert self._kernel is not None, "Use the method .fit() before calling this method!"
 
+        if len(X.shape) == 1:
+            X = np.expand_dims(X, -1)
+
         n = len(self._X)
         one = np.ones((n, 1))  # vector of ones
 
@@ -152,20 +181,34 @@ class GaussianProcess:
         k = self.cov(self._X, X)
 
         # Mean prediction
-        mean = self._mean + k @ self._inv_K @ (self._Y - self._mean * one)
+        mean = self._mean + k.T @ self._K_obv_obv_inv @ (self._Y - self._mean * one)
 
         # Variance prediction
-        sigma = (self._sigma * (1 - np.diag(k @ self._inv_K @ k.T))).T
+        cov = self._variance * (1 - k.T @ self._K_obv_obv_inv @ k)
 
-        return mean, sigma
+        if self._return_cov:
+            # Case: Return covariance matrix
+            return mean, cov
+        else:
+            # Case: Return variance
+            variance = np.diagonal(cov)
+            return mean, variance
 
     def _get_kernel_class(self) -> Type[Kernel]:
         """
         Returns:
             Type[Kernel]: Class of the used kernel
         """
-        if self._kernel_method == "gaussian":
-            return GaussianKernel
+        kernel_mapping = {
+            "linear": LinearKernel,
+            "polynomial": PolynomialKernel,
+            "sigmoid": SigmoidKernel,
+            "laplacian": LaplacianKernel,
+            "periodic": PeriodicKernel,
+            "rbf": RBFKernel,
+        }
+        if self._kernel_method in kernel_mapping:
+            return kernel_mapping[self._kernel_method]
         raise ValueError(f"Unknown kernel method {self._kernel_method}!")
 
     def _get_kernel_hps(self) -> dict:

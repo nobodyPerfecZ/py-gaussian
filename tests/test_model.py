@@ -1,7 +1,7 @@
 import unittest
 import numpy as np
 
-from PyGaussian.kernel import GaussianKernel
+from PyGaussian.kernel import RBFKernel
 from PyGaussian.model import GaussianProcess
 
 
@@ -11,7 +11,7 @@ class TestGaussianProcess(unittest.TestCase):
     """
 
     def setUp(self):
-        self.model1 = GaussianProcess(kernel_method="gaussian", optimizer="L-BFGS-B", n_restarts=10)
+        self.model1 = GaussianProcess(kernel_method="rbf", optimizer="L-BFGS-B", n_restarts=10)
 
         self.X = np.array([
             [1, 2, 3],
@@ -60,19 +60,19 @@ class TestGaussianProcess(unittest.TestCase):
         """
         Tests the method _get_kernel_class().
         """
-        self.assertEqual(GaussianKernel, self.model1._get_kernel_class())
+        self.assertEqual(RBFKernel, self.model1._get_kernel_class())
 
     def test_get_kernel_hps(self):
         """
         Tests the method _get_kernel_hps().
         """
-        self.assertEqual({"length": float}, self.model1._get_kernel_hps())
+        self.assertEqual({"length_scale": float}, self.model1._get_kernel_hps())
 
     def test_get_kernel(self):
         """
         Tests the method _get_kernel().
         """
-        self.assertIsInstance(self.model1._get_kernel(0.2), GaussianKernel)
+        self.assertIsInstance(self.model1._get_kernel(0.2), RBFKernel)
 
 
 if __name__ == '__main__':
