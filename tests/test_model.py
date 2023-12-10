@@ -1,4 +1,5 @@
 import unittest
+
 import numpy as np
 
 from PyGaussian.kernel import RBFKernel
@@ -11,7 +12,7 @@ class TestGaussianProcess(unittest.TestCase):
     """
 
     def setUp(self):
-        self.model1 = GaussianProcess(kernel_method="rbf", optimizer="L-BFGS-B", n_restarts=10)
+        self.model1 = GaussianProcess(kernel_method="rbf", n_restarts=10)
 
         self.X = np.array([
             [1, 2, 3],
@@ -29,15 +30,6 @@ class TestGaussianProcess(unittest.TestCase):
             [0.4],
         ])
 
-    def test_cov(self):
-        """
-        Tests the method cov().
-        """
-        self.model1.fit(self.X, self.Y)
-        K = self.model1.cov(self.X, self.X)
-
-        self.assertEqual(self.X.shape, K.shape)
-
     def test_fit(self):
         """
         Tests the method fit().
@@ -52,7 +44,7 @@ class TestGaussianProcess(unittest.TestCase):
         Tests the method predict().
         """
         self.model1.fit(self.X, self.Y)
-        mean, sigma = self.model1.predict(self.X_test)
+        mean = self.model1.predict(self.X_test)
 
         self.assertTrue(np.isclose(self.Y[1], mean))
 
@@ -66,13 +58,13 @@ class TestGaussianProcess(unittest.TestCase):
         """
         Tests the method _get_kernel_hps().
         """
-        self.assertEqual({"length_scale": float}, self.model1._get_kernel_hps())
+        self.assertEqual({"length_scale": (1e-5, 1e5)}, self.model1._get_kernel_hps())
 
     def test_get_kernel(self):
         """
         Tests the method _get_kernel().
         """
-        self.assertIsInstance(self.model1._get_kernel(0.2), RBFKernel)
+        self.assertIsInstance(self.model1._get_kernel([0.2]), RBFKernel)
 
 
 if __name__ == '__main__':
