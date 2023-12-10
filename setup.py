@@ -10,7 +10,7 @@ with open("README.md", "r") as file:
 
 setup(
     name="PyGaussian",
-    version="0.0.1",
+    version="0.0.2",
     author=["Dennis J."],
     url="https://github.com/nobodyPerfecZ/py-gaussian",
     python_requires=">=3.10",
